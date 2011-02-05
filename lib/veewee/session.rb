@@ -358,7 +358,7 @@ module Veewee
         ##PDB: again problems with the virtualbox GEM
 	      ##VirtualBox::Global.global.max_vdi_size=1000000
         #newdisk.save
-        command ="#{@vboxcmd} createhd --filename '#{boxname}.#{@definition[:disk_format]}' --size '#{@definition[:disk_size].to_i}' --format #{@definition[:disk_format]}"
+        command ="#{@vboxcmd} createhd --filename '#{boxname}."+@definition[:disk_format].downcase+"' --size '#{@definition[:disk_size].to_i}' --format #{@definition[:disk_format]}"
         Veewee::Shell.execute("#{command}")
                    
       end
