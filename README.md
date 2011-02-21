@@ -1,51 +1,57 @@
-# Veewee is currently broken due to changes in Virtualbox 4.x
-# We will fix them soon and move veewee to a plugin for vagrant
-
-
-VeeWee: the tool to easily build vagrant base boxes
-===================================================
+**VeeWee:** the tool to easily build vagrant base boxes
 Vagrant is a great tool to test new things or changes in a virtual machine(Virtualbox) using either chef or puppet.
 The first step is to download an existing 'base box'. I believe this scares a lot of people as they don't know who or how this box was build. Therefore lots of people end up first building their own base box to use with vagrant.
 
 Veewee tries to automate this and to share the knowledge and sources you need to create a basebox. Instead of creating custom ISO's from your favorite distribution, it leverages the 'keyboardputscancode' command of Virtualbox so send the actual 'boot prompt' keysequence to boot an existing iso.
 
 Before we can actually build the boxes, we need to take care of the minimal things to install:
-- Currently this is still a very much 'it works on my machine only' code
-- Have Virtualbox 3.2.x installed -> download it from http://download.virtualbox.org/virtualbox/
-- Have ruby and rubygems working
-- Have the rake gem installed -> gem install rake
+- Have Virtualbox 4.x installed -> download it from http://download.virtualbox.org/virtualbox/
+
 
 ALPHA CODE: -> you're on your own....
 
-Installation:
-=============
-0) To sandbox everything, and avoid root acces , source the veewee.ENV file .
-   This will set your VBOX_HOME_DIR=$VEEWEE/tmp, GEM_PATH=$VEEWEE/gems, GEM_HOME=$VEEWEE/gems
+## Installation: 
+__from source__
+
+<pre>
 $ git clone https://github.com/jedi4ever/veewee.git
 $ cd veewee
-$ . veewee.ENV
+$ gem install bundler
+$ bundle install
+</pre>
+__as a gem__
+<pre>
+$ gem install veewee 
+</pre>
 
-1) Install all the necessary gems (sandboxes in $VEEWEE/gems)
-$ gem install rake vagrant popen4 bundler
--> vagrant installs virtualbox,net-ssh, net-scp too
+## List all templates
+<pre>
+$ vagrant basebox templates
+The following templates are available:
+vagrant basebox define 'boxname' 'CentOS-4.8-i386'
+vagrant basebox define 'boxname' 'CentOS-5.5-i386'
+vagrant basebox define 'boxname' 'CentOS-5.5-i386-netboot'
+vagrant basebox define 'boxname' 'ubuntu-10.04.1-server-amd64'
+vagrant basebox define 'boxname' 'ubuntu-10.04.1-server-i386'
+vagrant basebox define 'boxname' 'ubuntu-10.10-server-amd64'
+vagrant basebox define 'boxname' 'ubuntu-10.10-server-i386'
 
-2) List all templates
-$ rake templates
-the following templates are available:
-use rake define['<boxname>','CentOS-4.8-i386']
-use rake define['<boxname>','CentOS-5.5-i386']
-use rake define['<boxname>','ubuntu-10.04.1-server-i386']
-use rake define['<boxname>','ubuntu-10.10-server-i386']
-
-3) Define a new box (ex. Ubuntu 10.10 server i386) - this is essentially making a copy based on the  templates provided above.
-$ rake define['myubuntubox','ubuntu-10.10-server-i386']
+</pre>
+## Define a new box 
+Let's define a  Ubuntu 10.10 server i386 basebox called myunbuntubox
+this is essentially making a copy based on the  templates provided above.
+<pre>$ vagrant basebox define 'myubuntubox' 'ubuntu-10.10-server-i386'</pre>
 template successfully copied
 
--> This copies over the files in templates/ubuntu-10.10-server-i386 to definition/myubuntubox
-$ ls definitions/myubuntubox
-definition.rb	postinstall.sh	postinstall2.sh	preseed.cfg
+-> This copies over the templates/ubuntu-10.10-server-i386 to definition/myubuntubox
 
-4) Optionally modify the definition.rb , postinstall.sh or preseed.cfg
+<pre>$ ls definitions/myubuntubox
+definition.rb	postinstall.sh	postinstall2.sh	preseed.cfg
+</pre>
+
+## Optionally modify the definition.rb , postinstall.sh or preseed.cfg
+
+<pre>
 Veewee::Session.declare( {
   :cpu_count => '1', :memory_size=> '256', 
   :disk_size => '10140', :disk_format => 'VDI',:disk_size => '10240' ,
@@ -72,48 +78,58 @@ Veewee::Session.declare( {
   :postinstall_files => [ "postinstall.sh"],:postinstall_timeout => "10000"
    }
 )
+</pre>
 
 If you need to change values in the templates, be sure to run the rake undefine, the rake define again to copy the changes across.
 
-5) Put your isofile inside the $VEEWEE/iso directory or if you don't run
-$ rake build['myubuntubox]
+## Getting the cdrom file in place
+Put your isofile inside the 'currentdir'/iso directory or if you don't run
+<pre>$ vagrant basebox build 'myubuntubox'</pre>
 
--> This will show you the iso to download
+- the build assumes your iso files are in 'currentdir'/iso
+- if it can not find it will suggest to download the iso for you
 
-6) Build the new box:
-$ rake build['myubuntubox]
+## Build the new box:
+<pre>
+$ vagrant basebox build 'myubuntubox'</pre>
 
--> This will create a machine + disk according to the definition.rb
--> Note: :os_type_id = The internal Name Virtualbox uses for that Distribution
--> Mount the ISO File :iso_file
--> Boot up the machine and wait for :boot_time
--> Send the keystrokes in :boot_cmd_sequence
--> Startup a webserver on :kickstart_port to wait for a request for the :kickstart_file
--> Wait for ssh login to work with :ssh_user , :ssh_password
--> Sudo execute the :postinstall_files
+- This will create a machine + disk according to the definition.rb
+- Note: :os_type_id = The internal Name Virtualbox uses for that Distribution
+- Mount the ISO File :iso_file
+- Boot up the machine and wait for :boot_time
+- Send the keystrokes in :boot_cmd_sequence
+- Startup a webserver on :kickstart_port to wait for a request for the :kickstart_file
+- Wait for ssh login to work with :ssh_user , :ssh_password
+- Sudo execute the :postinstall_files
 
-7) Export the box into the boxes directory
-$ rake export['myubuntubox']
+## Export the vm to a .box file
+<pre>$ vagrant basebox export 'myubuntubox' </pre>
 
-vagrant package --base 'myubuntubox' --output 'boxes/myubuntubox.box'
-vagrant box add 'myubuntubox' 'boxes/myubuntubox.box'
+this is actually calling - vagrant package --base 'myubuntubox' --output 'boxes/myubuntubox.box'
 
--> This will show you the vagrant command to export and to add it your vagrant boxset
+this will result in a myubuntubox.box
 
-8) Start vagrant init in another window (as we have set the Virtualbox env to tmp before)
-$ To import it into vagrant type:
+## Add the box as one of your boxes
+To import it into vagrant type:
+
+<pre>$ vagrant box add 'myubuntubox' 'myubuntubox.box'
+</pre>
+## Use it in vagrant
 
 To use it:
-vagrant init 'myubuntubox'
-vagrant up
-vagrant ssh
-
-9) If you have a setup working, share your 'definition' with me. That would be fun! 
+<pre>
+$ vagrant init 'myubuntubox'
+$ vagrant up
+$ vagrant ssh
+</pre>
+## If you have a setup working, share your 'definition' with me. That would be fun! 
 
 IDEAS:
+
 - Now you integrate this with your CI build to create a daily basebox
 
 FUTURE IDEAS:
+
 - use snapshots to fastforward initial boot, and every postinstall command
 - export to AMI too
 - provide for more failsafe execution, testing parameters

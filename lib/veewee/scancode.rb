@@ -2,11 +2,16 @@ module Veewee
   class Scancode
   
     def self.send_sequence(vboxcmd,vname,sequence)
-
+            puts
+            counter=0
             sequence.each { |s|
+              counter=counter+1
+ 
               s.gsub!(/%IP%/,Veewee::Session.local_ip);
               s.gsub!(/%PORT%/,'7122');
               s.gsub!(/%NAME%/, vname);
+              puts "Typing:[#{counter}]: "+s
+
               keycodes=string_to_keycode(s)
       
               # VBox seems to have issues with sending the scancodes as one big
@@ -21,13 +26,15 @@ module Veewee
         	    sleep 1
     	    }
 
+          puts "Done typing."
+          puts
   
     end
 
     def self.send_keycode(vboxcmd,vname,keycode)
            command= "#{vboxcmd} controlvm '#{vname}' keyboardputscancode #{keycode}"
            #puts "#{command}"
-                  IO.popen("#{command}") { |f| print '.' }
+                  IO.popen("#{command}") { |f| print '' }
     end
 
     def self.string_to_keycode(thestring)
@@ -60,6 +67,8 @@ module Veewee
           special['<Spacebar>'] = '39';
           special['<Return>'] = '1c'
           special['<Esc>'] = '01';
+          special['<Tab>'] = '0f';
+
           #special['<Up>'] = '01';
           #special['<Down>'] = '01';
           #special['<PageUp>'] = '01';

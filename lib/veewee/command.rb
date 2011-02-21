@@ -1,63 +1,80 @@
 require 'veewee/session'
 
-#Setup some base variables to use
-veewee_dir= File.expand_path(File.join(File.dirname(__FILE__),"..",".."))
-definition_dir= File.expand_path(File.join(".", "definitions"))
-lib_dir= File.expand_path(File.join(veewee_dir, "lib"))
-box_dir= File.expand_path(File.join(veewee_dir, "boxes"))
-template_dir=File.expand_path(File.join(veewee_dir, "templates"))
-
-#vbox_dir=File.expand_path(File.join(veewee_dir, "tmp"))
-tmp_dir=File.expand_path(File.join(veewee_dir, "tmp"))
-
-iso_dir=File.expand_path(File.join(veewee_dir, "iso"))
-
-#needs to be moved to the config files to be allowed override
-#ENV['VBOX_USER_HOME']=vbox_dir
-
 #Load Veewee::Session libraries
-Dir.glob(File.join(lib_dir, '**','*.rb')).each {|f|
-  require f  }
+lib_dir= File.expand_path(File.join(File.dirname(__FILE__),"..","..", "lib"))
+Dir.glob(File.join(lib_dir, '**','*.rb')).each {|f| require f  }
+
+#Setup some base variables to use
+template_dir=File.expand_path(File.join(lib_dir,"..", "templates"))
+
+veewee_dir="."
+definition_dir= File.expand_path(File.join(veewee_dir, "definitions"))
+tmp_dir=File.expand_path(File.join(veewee_dir, "tmp"))
+iso_dir=File.expand_path(File.join(veewee_dir, "iso"))
+box_dir=File.expand_path(File.join(veewee_dir, "boxes"))
 
 #Initialize
 Veewee::Session.setenv({:veewee_dir => veewee_dir, :definition_dir => definition_dir,
    :template_dir => template_dir, :iso_dir => iso_dir, :box_dir => box_dir, :tmp_dir => tmp_dir})
 
+module Veewee
+class Command < Vagrant::Command::GroupBase
+  register "basebox","Commands to manage baseboxes"  
 
-module Vagrant
-  module Command
-    class BoxCommand < Vagrant::Command::GroupBase
-      # Do not register anymore, as this registration is already done in Vagrant core
-      # Since Ruby classes are 'open', we are just adding subcommands to the 'box' command
-
-      desc "templates", "List the currently available box templates"
-      def templates
-	    Veewee::Session.list_templates
-      end
-
-      desc "init BOXNAME TEMPLATE", "Define a new box starting from a template"
-      def init(boxname, template)
-	puts "Init a new box #{boxname}, starting from template #{template}"
-	Veewee::Session.define(boxname,template)
-      end
-
-      desc "build BOXNAME", "Build the box BOXNAME"
-      def build(boxname)
-        puts "Building box #{boxname}"
-	Veewee::Session.build(boxname)
-      end
-
-      desc "ostypes", "List the available Operating System types"
-      def ostypes
-        puts "Operating System types:"
-	    Veewee::Session.list_ostypes
-      end
-
-      desc "clean", "Clean all unfinished builds"
-      def clean
-        puts "Cleaning all unfinished builds"
-      end
-
-    end
+  desc "templates", "List the currently available basebox templates"
+  def templates
+    Veewee::Session.list_templates
   end
+
+  desc "define BOXNAME TEMPLATE", "Define a new basebox starting from a template"
+  method_option :force,:type => :boolean , :default => false, :aliases => "-f", :desc => "overwrite the definition"
+  def define(boxname, template)    
+    Veewee::Session.define(boxname,template,options)
+  end
+
+  desc "undefine BOXNAME", "Removes the definition of a basebox "
+  def undefine(boxname)    
+      Veewee::Session.undefine(boxname)
+  end
+
+  desc "build BOXNAME", "Build the box BOXNAME"
+  method_option :force,:type => :boolean , :default => false, :aliases => "-f", :desc => "overwrite the basebox"
+  method_option :nogui,:type => :boolean , :default => false, :aliases => "-n", :desc => "no gui"
+
+  def build(boxname)
+    Veewee::Session.build(boxname,options)
+  end
+
+  desc "ostypes", "List the available Operating System types"
+  def ostypes
+    Veewee::Session.list_ostypes
+  end
+  
+  desc "destroy BOXNAME", "Destroys the virtualmachine that was build for a basebox"
+  def destroy(boxname)
+     Veewee::Session.destroy_vm(boxname)
+  end
+  
+  desc "list", "Lists all defined baseboxes"
+  def list
+  Veewee::Session.list_definitions
+  end
+  
+  desc "export [NAME]", "Exports the basebox to the vagrant box format" 
+  method_options :force => :boolean  
+  def export(boxname)
+      if (!boxname.nil?)
+        Veewee::Session.export_box(boxname)
+      end
+  end
+  
+  desc "validate [NAME]", "Validates a box against vagrant compliancy rules"
+  def validate(boxname)
+      if (!boxname.nil?)
+        Veewee::Session.validate_box(boxname)
+      end
+  end
+  
+end
+
 end
