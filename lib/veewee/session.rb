@@ -22,6 +22,7 @@ module Veewee
       @veewee_dir=env[:veewee_dir]
       @definition_dir=env[:definition_dir]
       @template_dir=env[:template_dir]
+      @validation_dir=env[:validation_dir]
       @box_dir=env[:box_dir]
       @iso_dir=env[:iso_dir]
       @tmp_dir=env[:tmp_dir]
@@ -30,7 +31,7 @@ module Veewee
     def self.declare(options)
       defaults={
         :cpu_count => '1', :memory_size=> '256', 
-        :disk_size => '10140', :disk_format => 'VDI',:disk_size => '10240' ,
+        :disk_size => '10240', :disk_format => 'VDI', :hostiocache => 'off' ,
         :os_type_id => 'Ubuntu',
         :iso_file => "ubuntu-10.10-server-i386.iso", :iso_src => "", :iso_md5 => "", :iso_download_timeout => 1000,
         :boot_wait => "10", :boot_cmd_sequence => [ "boot"],
@@ -148,16 +149,29 @@ module Veewee
         puts 
         puts "Verifying the isofile #{filename} is ok."
       else
+
         full_path=File.join(@iso_dir,filename)
         path1=Pathname.new(full_path)
         path2=Pathname.new(Dir.pwd)
         rel_path=path1.relative_path_from(path2).to_s
         
         puts
-        puts "We did not find an isofile in <currentdir>/iso. The definition provided the following download information:"
-        puts "- Download url: #{@definition[:iso_src]}"
+        puts "We did not find an isofile in <currentdir>/iso. \n\nThe definition provided the following download information:"
+        unless "#{@definition[:iso_src]}"==""
+          puts "- Download url: #{@definition[:iso_src]}"
+        end
         puts "- Md5 Checksum: #{@definition[:iso_md5]}"
-        puts ""
+        puts "#{@definition[:iso_download_instructions]}"
+        puts
+        
+        if @definition[:iso_src] == ""
+          puts "Please follow the instructions above:"
+          puts "- to get the ISO"
+          puts" - put it in <currentdir>/iso"
+          puts "- then re-run the command"
+          puts
+          exit
+        else
         
         question=ask("Download? (Yes/No)") {|q| q.default="No"}
         if question.downcase == "yes"
@@ -175,7 +189,7 @@ module Veewee
           exit
         end
         
-  
+      end
       end
   
     end
@@ -278,7 +292,7 @@ module Veewee
             puts "Waiting for the machine to boot"
             sleep @definition[:boot_wait].to_i
         
-            Veewee::Scancode.send_sequence("#{@vboxcmd}","#{boxname}",@definition[:boot_cmd_sequence])
+            Veewee::Scancode.send_sequence("#{@vboxcmd}","#{boxname}",@definition[:boot_cmd_sequence],@definition[:kickstart_port])
         
             kickstartfile=@definition[:kickstart_file]
             if kickstartfile.nil? || kickstartfile.length == 0
@@ -286,17 +300,26 @@ module Veewee
             else
                 puts "Starting a webserver on port #{@definition[:kickstart_port]}"
                 #:kickstart_port => "7122", :kickstart_ip => self.local_ip, :kickstart_timeout => 1000,:kickstart_file => "preseed.cfg",
-                Veewee::Web.wait_for_request(kickstartfile,{:port => @definition[:kickstart_port],
+		if kickstartfile.is_a? String
+			Veewee::Web.wait_for_request(kickstartfile,{:port => @definition[:kickstart_port],
                                           :host => @definition[:kickstart_ip], :timeout => @definition[:kickstart_timeout],
                                           :web_dir => File.join(@definition_dir,boxname)})
-                
+		end 
+		if kickstartfile.is_a? Array
+			kickstartfiles=kickstartfile
+			kickstartfiles.each do |kickfile|
+				Veewee::Web.wait_for_request(kickfile,{:port => @definition[:kickstart_port],
+                                          :host => @definition[:kickstart_ip], :timeout => @definition[:kickstart_timeout],
+                                          :web_dir => File.join(@definition_dir,boxname)})
+			end
+		end
             end
                                       
                                       
             Veewee::Ssh.when_ssh_login_works("localhost",ssh_options) do
               #Transfer version of Virtualbox to $HOME/.vbox_version            
               versionfile=Tempfile.open("vbox.version")
-              versionfile.puts "#{VirtualBox::Global.global.lib.virtualbox.version}"
+              versionfile.puts "#{VirtualBox::Global.global.lib.virtualbox.version.split('_')[0]}"
               versionfile.rewind
               begin
                 Veewee::Ssh.transfer_file("localhost",versionfile.path,".vbox_version", ssh_options)
@@ -327,11 +350,11 @@ module Veewee
                       exit
                     end
                     command=@definition[:sudo_cmd]
-                    command.gsub!(/%p/,"#{@definition[:ssh_password]}")
-                    command.gsub!(/%u/,"#{@definition[:ssh_user]}")
-                    command.gsub!(/%f/,"#{postinstall_file}")
-
-                    Veewee::Ssh.execute("localhost","#{command}",ssh_options)
+                    newcommand=command.gsub(/%p/,"#{@definition[:ssh_password]}")
+                    newcommand.gsub!(/%u/,"#{@definition[:ssh_user]}")
+                    newcommand.gsub!(/%f/,"#{postinstall_file}")
+		    puts "***#{newcommand}"
+                    Veewee::Ssh.execute("localhost","#{newcommand}",ssh_options)
                     end
                     
                  end
@@ -458,7 +481,7 @@ module Veewee
     end
     
     def self.create_vm(boxname,force=false)
-
+      
       #Verifying the os.id with the :os_type_id specified
       matchfound=false
       VirtualBox::Global.global.lib.virtualbox.guest_os_types.collect { |os|
@@ -488,11 +511,28 @@ module Veewee
         #TODO One day ruby-virtualbox will be able to handle this creation
         #Box does not exist, we can start to create it
 
-        command="#{@vboxcmd} createvm --name '#{boxname}' --ostype '#{@definition[:os_type_id]}' --register"    
+        command="#{@vboxcmd} createvm --name '#{boxname}' --ostype '#{@definition[:os_type_id]}' --register"
 
         #Exec and system stop the execution here
         Veewee::Shell.execute("#{command}")
+
+        # Modify the vm to enable or disable hw virtualization extensions
+        vm_flags=%w{pagefusion acpi ioapic pae hpet hwvirtex hwvirtexcl nestedpaging largepages vtxvpid synthxcpu rtcuseutc}
         
+        vm_flags.each do |vm_flag|
+          unless @definition[vm_flag.to_sym].nil?
+            puts "Setting VM Flag #{vm_flag} to #{@definition[vm_flag.to_sym]}"
+            command="#{@vboxcmd} modifyvm #{boxname} --#{vm_flag.to_s} #{@definition[vm_flag.to_sym]}"
+          end
+        end
+
+        #Exec and system stop the execution here
+        Veewee::Shell.execute("#{command}")
+
+        command="#{@vboxcmd} sharedfolder add  '#{boxname}' --name 'veewee-validation' --hostpath '#{File.expand_path(@validation_dir)}' --automount"
+
+        Veewee::Shell.execute("#{command}")
+
       end
 
       vm=VirtualBox::VM.find(boxname)
@@ -568,7 +608,7 @@ module Veewee
     
     def self.add_sata_controller(boxname)
       #unless => "${vboxcmd} showvminfo '${vname}' | grep 'SATA Controller' ";
-      command ="#{@vboxcmd} storagectl '#{boxname}' --name 'SATA Controller' --add sata"
+      command ="#{@vboxcmd} storagectl '#{boxname}' --name 'SATA Controller' --add sata --hostiocache #{@definition[:hostiocache]}"
       Veewee::Shell.execute("#{command}")
     end
     
@@ -818,7 +858,7 @@ module Veewee
  
           #Need to look it up again because if it was an initial load
           vm=VirtualBox::VM.find(boxname) 
-          puts "Step [#{current_step_nr}] was succesfull - saving state"
+          puts "Step [#{current_step_nr}] was succesfully - saving state"
           vm.save_state
           sleep 2 #waiting for it to be ok
           #puts "about to snapshot #{vm}"
