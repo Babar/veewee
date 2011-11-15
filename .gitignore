@@ -3,7 +3,11 @@ gems/*
 iso/*
 tmp/*
 definitions/*
+Vagrantfile
+cookbooks/*
+manifests/*
 boxes/*
 pkg/*
 *.box
 .vagrant
+virtualfloppy.vfd

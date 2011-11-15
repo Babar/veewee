@@ -1,5 +1,7 @@
 # http://projects.puppetlabs.com/projects/1/wiki/Puppet_Solaris
 
+date > /etc/vagrant_box_build_time
+
 # Add the opencsw package site
 export PATH=/usr/bin:/usr/sbin:$PATH
 
@@ -53,7 +55,7 @@ export PATH=/opt/csw/gcc4/bin:$PATH
 mkdir /export/home/vagrant/.ssh
 chmod 700 /export/home/vagrant/.ssh
 cd /export/home/vagrant/.ssh
-/usr/bin/wget --no-check-certificate 'http://github.com/mitchellh/vagrant/raw/master/keys/vagrant.pub' -O authorized_keys
+/usr/bin/wget --no-check-certificate 'https://raw.github.com/mitchellh/vagrant/master/keys/vagrant.pub' -O authorized_keys
 chown -R vagrant /export/home/vagrant/.ssh
 
 #Installing the virtualbox guest additions
@@ -69,7 +71,7 @@ yes|/usr/sbin/pkgadd -d . SUNWvbox
 echo "export PATH=/opt/csw/bin:/opt/csw/sbin:$PATH" >> /root/.profile
 echo "export PATH=/opt/csw/bin:/opt/csw/sbin:$PATH" >> /export/home/vagrant/.profile
 
-puts "Note: validation of this box wil fail, as it's not linux based, working on that"
+echo "Note: validation of this box wil fail, as it's not linux based, working on that"
 
 exit
 
